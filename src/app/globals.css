@@ -1,0 +1,144 @@
+@import "tailwindcss";
+
+:root {
+  --background: #02050a;
+  --foreground: #f8fafc;
+  --font-inter: Arial, Helvetica, sans-serif;
+  --font-geist-mono: "Courier New", monospace;
+  --font-cinzel: Georgia, serif;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-cinzel);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
+}
+
+body {
+  min-width: 320px;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(34, 211, 238, 0.08), transparent 28rem),
+    radial-gradient(circle at 78% 12%, rgba(245, 158, 11, 0.1), transparent 30rem),
+    var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+::selection {
+  background: rgba(245, 158, 11, 0.35);
+  color: #fff7ed;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(125, 211, 252, 0.35);
+  border-radius: 999px;
+}
+
+.arcane-panel {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 6px;
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.78), rgba(2, 6, 23, 0.86)),
+    radial-gradient(circle at 18% 0%, rgba(34, 211, 238, 0.08), transparent 22rem),
+    radial-gradient(circle at 82% 12%, rgba(245, 158, 11, 0.08), transparent 20rem);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 18px 60px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(18px);
+}
+
+.arcane-panel::before {
+  border-radius: inherit;
+}
+
+.scanlines {
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 211, 252, 0.025) 1px, transparent 1px);
+  background-size:
+    100% 4px,
+    64px 100%;
+  mask-image: linear-gradient(to bottom, transparent, black 12%, black 86%, transparent);
+  opacity: 0.42;
+}
+
+.map-stage,
+.battle-stage {
+  isolation: isolate;
+}
+
+.map-node {
+  transform: translate(-50%, -50%);
+}
+
+.map-node::after {
+  position: absolute;
+  inset: -10px;
+  z-index: -1;
+  border: 1px solid rgba(34, 211, 238, 0.22);
+  border-radius: 6px;
+  content: "";
+  opacity: 0;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.map-node:hover::after {
+  opacity: 1;
+  transform: scale(1.05);
+}
+
+@media (max-width: 900px) {
+  .map-node {
+    min-width: 148px;
+    transform: translate(-50%, -50%) scale(0.88);
+  }
+}
+
+@media (max-width: 640px) {
+  .map-node {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    width: 100%;
+    min-width: 0;
+    transform: none;
+  }
+
+  .map-stage {
+    min-height: auto;
+    padding: 22rem 1rem 1rem;
+  }
+}
