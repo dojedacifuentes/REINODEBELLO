@@ -1,0 +1,254 @@
+[
+  {
+    "id": "cv-vicio-oculto",
+    "title": "Casa con daño estructural oculto",
+    "world": "Compraventa",
+    "difficulty": 3,
+    "dossier": "Elizabeth compra una casa para vivir con su hijo. Meses después de inscrita la compraventa, una lluvia deja ver daños estructurales preexistentes que no fueron informados.",
+    "facts": [
+      "La compraventa recae sobre inmueble.",
+      "El defecto existía al tiempo de la venta.",
+      "El daño era oculto y grave para el uso natural de la casa.",
+      "La compradora busca remedio frente al vendedor."
+    ],
+    "question": "¿Qué institución debes activar primero?",
+    "options": [
+      {
+        "id": "redhibitorio",
+        "label": "Vicios redhibitorios: rescisión o rebaja proporcional",
+        "correct": true,
+        "articleId": "art-1793",
+        "concept": "Saneamiento por vicios ocultos",
+        "feedback": "Correcto. El caso exige probar vicio existente al tiempo de la venta, grave y oculto; luego elegir acción redhibitoria o rebaja."
+      },
+      {
+        "id": "lesion",
+        "label": "Lesión enorme por precio injusto",
+        "correct": false,
+        "articleId": "art-1888",
+        "concept": "Lesión enorme",
+        "feedback": "La lesión mira desproporción del precio, no defectos ocultos de la cosa."
+      },
+      {
+        "id": "nulidad",
+        "label": "Nulidad absoluta por falta de causa",
+        "correct": false,
+        "articleId": "art-1467",
+        "concept": "Causa",
+        "feedback": "Nada indica falta o ilicitud de causa; el conflicto nace del saneamiento de la cosa vendida."
+      }
+    ],
+    "resolution": "Respuesta de examen: identificar compraventa, obligación de saneamiento, vicio oculto grave existente al tiempo de la venta y remedios del comprador.",
+    "reward": { "exp": 150, "reputation": 8, "articleIds": ["art-1793"] }
+  },
+  {
+    "id": "promesa-mandato-menor",
+    "title": "Promesa firmada por mandataria menor adulto",
+    "world": "Mandato y promesa",
+    "difficulty": 4,
+    "dossier": "María encarga a Camila, de 16 años, comprar un departamento. Camila firma promesa de compraventa con Manuel para celebrar la compraventa en fecha determinada.",
+    "facts": [
+      "Hay encargo de gestión por cuenta y riesgo de María.",
+      "Camila es menor adulto.",
+      "La promesa tiene fecha para celebrar la compraventa.",
+      "Manuel luego se niega porque recibió mejor oferta."
+    ],
+    "question": "¿Qué cadena de análisis es más sólida?",
+    "options": [
+      {
+        "id": "mandato-promesa",
+        "label": "Mandato: capacidad especial del mandatario; promesa: revisar requisitos del 1554",
+        "correct": true,
+        "articleId": "art-1554",
+        "concept": "Mandato con promesa",
+        "feedback": "Correcto. Primero separas mandato y promesa, luego revisas capacidad especial del mandatario y exigibilidad de otorgar el contrato prometido."
+      },
+      {
+        "id": "nulo-menor",
+        "label": "Todo es nulo porque una menor adulto jamás puede ser mandataria",
+        "correct": false,
+        "articleId": "art-2128",
+        "concept": "Capacidad del mandatario",
+        "feedback": "Demasiado amplio. El PPT destaca una regla especial para el menor adulto mandatario."
+      },
+      {
+        "id": "venta-perfecta",
+        "label": "Ya se perfeccionó la compraventa y se transfirió el dominio",
+        "correct": false,
+        "articleId": "art-670",
+        "concept": "Título y modo",
+        "feedback": "La promesa no equivale a compraventa definitiva ni a tradición."
+      }
+    ],
+    "resolution": "La respuesta ganadora distingue mandato, representación, capacidad del mandatario y promesa como obligación de hacer si cumple el art. 1554.",
+    "reward": { "exp": 180, "reputation": 10, "articleIds": ["art-2116", "art-2128", "art-1554"] }
+  },
+  {
+    "id": "hipoteca-tercero",
+    "title": "Inmueble hipotecado vendido a tercero",
+    "world": "Hipoteca",
+    "difficulty": 4,
+    "dossier": "Un deudor vende un inmueble hipotecado. El comprador sostiene que la venta borró el gravamen porque él no firmó la obligación principal.",
+    "facts": [
+      "La hipoteca fue constituida e inscrita antes de la venta.",
+      "El inmueble permanece materialmente en poder del nuevo dueño.",
+      "El acreedor no ha sido pagado.",
+      "El tercero pretende desconocer la persecución."
+    ],
+    "question": "¿Cuál es la respuesta de examen?",
+    "options": [
+      {
+        "id": "persecucion",
+        "label": "Puede venderse, pero el acreedor conserva persecución y preferencia",
+        "correct": true,
+        "articleId": "art-2428",
+        "concept": "Derecho de persecución",
+        "feedback": "Correcto. Art. 2415 permite enajenar; art. 2428 permite perseguir la finca hipotecada en manos de tercero."
+      },
+      {
+        "id": "nula",
+        "label": "La venta es nula por existir hipoteca",
+        "correct": false,
+        "articleId": "art-2415",
+        "concept": "Facultad de enajenar",
+        "feedback": "La hipoteca no impide por sí sola enajenar; el gravamen sigue a la finca."
+      },
+      {
+        "id": "extinguida",
+        "label": "La hipoteca se extingue automáticamente con cada venta",
+        "correct": false,
+        "articleId": "art-2434",
+        "concept": "Extinción de hipoteca",
+        "feedback": "La extinción exige causal; la venta a tercero no la extingue por sí sola."
+      }
+    ],
+    "resolution": "La estructura correcta: contrato de hipoteca, derecho real inscrito, accesoriedad, facultad de enajenar, persecución contra tercero poseedor.",
+    "reward": { "exp": 190, "reputation": 12, "articleIds": ["art-2407", "art-2415", "art-2428"] }
+  },
+  {
+    "id": "solidaridad-pago",
+    "title": "Codeudor sin interés paga el total",
+    "world": "Obligaciones solidarias",
+    "difficulty": 5,
+    "dossier": "Tres codeudores solidarios aparecen en una obligación divisible. Uno de ellos no tenía interés real en la deuda, pero paga el total al acreedor.",
+    "facts": [
+      "La solidaridad fue pactada expresamente.",
+      "La deuda interesaba sólo a dos codeudores.",
+      "El tercero sin interés pagó al acreedor.",
+      "Ahora busca recuperar lo pagado."
+    ],
+    "question": "¿Cómo explicas la fase interna?",
+    "options": [
+      {
+        "id": "subrogacion-total",
+        "label": "Se subroga contra los interesados por el total, subsistiendo la solidaridad",
+        "correct": true,
+        "articleId": "art-1511",
+        "concept": "Contribución a la deuda",
+        "feedback": "Correcto. El PPT distingue pago que interesa a todos y pago que interesa sólo a algunos."
+      },
+      {
+        "id": "cuotas-iguales",
+        "label": "Siempre cobra sólo cuotas iguales de todos",
+        "correct": false,
+        "articleId": "art-1511",
+        "concept": "Solidaridad pasiva",
+        "feedback": "La regla cambia si la deuda no interesaba a todos."
+      },
+      {
+        "id": "sin-accion",
+        "label": "Pierde acción por pagar deuda ajena",
+        "correct": false,
+        "articleId": "art-1568",
+        "concept": "Pago",
+        "feedback": "El pago tiene efectos extintivos frente al acreedor y abre relaciones internas."
+      }
+    ],
+    "resolution": "Respuesta oral: acreedor queda pagado; internamente se analiza interés en la deuda, subrogación, reembolso y subsistencia o no de solidaridad.",
+    "reward": { "exp": 210, "reputation": 14, "articleIds": ["art-1511"] }
+  },
+  {
+    "id": "acto-dolo-lesion",
+    "title": "Contrato ventajoso con engaño y precio bajo",
+    "world": "Acto jurídico",
+    "difficulty": 4,
+    "dossier": "Una parte oculta información decisiva para inducir a contratar. Además, el precio parece desproporcionado, pero el contrato no es de aquellos con lesión enorme regulada.",
+    "facts": [
+      "Hubo maniobra o artificio de una parte.",
+      "El engaño fue determinante para contratar.",
+      "La desproporción no encaja en caso especial de lesión enorme.",
+      "La parte afectada pide dejar sin efecto e indemnización."
+    ],
+    "question": "¿Qué institución lidera la respuesta?",
+    "options": [
+      {
+        "id": "dolo",
+        "label": "Dolo como vicio del consentimiento, con nulidad relativa e indemnización",
+        "correct": true,
+        "articleId": "art-1458",
+        "concept": "Dolo determinante",
+        "feedback": "Correcto. Determinante y obra de una parte: nulidad relativa e indemnización según el enfoque del PPT."
+      },
+      {
+        "id": "lesion",
+        "label": "Lesión enorme como vicio general",
+        "correct": false,
+        "articleId": "art-1451",
+        "concept": "Lesión enorme",
+        "feedback": "La lesión no es vicio general en Chile y requiere supuesto legal específico."
+      },
+      {
+        "id": "inexistencia",
+        "label": "Inexistencia por falta total de voluntad",
+        "correct": false,
+        "articleId": "art-1445",
+        "concept": "Existencia",
+        "feedback": "Aquí hubo voluntad, pero viciada; no falta total de consentimiento."
+      }
+    ],
+    "resolution": "La clave es no dejarse atraer por el precio bajo: si no hay caso especial de lesión, analiza dolo determinante.",
+    "reward": { "exp": 170, "reputation": 10, "articleIds": ["art-1458", "art-1451"] }
+  },
+  {
+    "id": "bienes-arrendatario",
+    "title": "Arrendatario que se cree dueño por los años",
+    "world": "Bienes",
+    "difficulty": 3,
+    "dossier": "Una persona arrienda una casa durante largo tiempo y luego afirma que, por vivir ahí, adquirió posesión útil para prescribir.",
+    "facts": [
+      "Entró al inmueble reconociendo dominio ajeno.",
+      "Su título es arrendamiento.",
+      "Ha tenido tenencia material prolongada.",
+      "No se describe interversión del título."
+    ],
+    "question": "¿Qué clasificación debes usar?",
+    "options": [
+      {
+        "id": "mera-tenencia",
+        "label": "Mera tenencia: actúa a nombre del dueño, no como señor y dueño",
+        "correct": true,
+        "articleId": "art-714",
+        "concept": "Mera tenencia",
+        "feedback": "Correcto. El punto decisivo es el reconocimiento de dominio ajeno."
+      },
+      {
+        "id": "poseedor",
+        "label": "Poseedor regular sólo por el paso de los años",
+        "correct": false,
+        "articleId": "art-700",
+        "concept": "Posesión",
+        "feedback": "Falta ánimo de señor y dueño; el título revela mera tenencia."
+      },
+      {
+        "id": "tradente",
+        "label": "Tradente por tradición ficta",
+        "correct": false,
+        "articleId": "art-670",
+        "concept": "Tradición",
+        "feedback": "No hay entrega con intención de transferir y adquirir dominio."
+      }
+    ],
+    "resolution": "Respuesta de grado: separar corpus y animus, identificar título de mera tenencia y explicar por qué el tiempo por sí solo no basta.",
+    "reward": { "exp": 140, "reputation": 8, "articleIds": ["art-700", "art-714"] }
+  }
+]

@@ -22,10 +22,23 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
 import { ParticleField } from "@/components/game/particle-field";
 import { Button } from "@/components/ui/button";
+import {
+  achievements,
+  classifierRounds,
+  flashcards,
+  futureExpansions,
+  legalCases,
+  npcs,
+  professors,
+  type Achievement,
+  type ClassifierRound,
+  type Flashcard,
+  type LegalCase,
+} from "@/lib/civil-content";
 import {
   actionMeta,
   articles,
@@ -53,12 +66,29 @@ const statKeys: StatKey[] = ["conocimiento", "estrategia", "oratoria", "memoria"
 
 const sceneLabels: Record<SceneKey, { label: string; icon: typeof Map }> = {
   map: { label: "Mapa", icon: Map },
-  district: { label: "Distrito", icon: Compass },
-  combat: { label: "Combate", icon: Swords },
-  inventory: { label: "Reliquias", icon: Package },
+  district: { label: "Mundo", icon: Compass },
+  combat: { label: "Duelo", icon: Swords },
+  cases: { label: "Casos", icon: Archive },
+  classifier: { label: "Clasif.", icon: CircleDot },
+  memory: { label: "Memoria", icon: Zap },
+  inventory: { label: "Reliq.", icon: Package },
   codex: { label: "Códex", icon: BookOpen },
-  profile: { label: "Personaje", icon: UserRound },
+  achievements: { label: "Logros", icon: Trophy },
+  profile: { label: "Ficha", icon: UserRound },
 };
+
+const mainScenes: SceneKey[] = [
+  "map",
+  "district",
+  "combat",
+  "cases",
+  "classifier",
+  "memory",
+  "inventory",
+  "codex",
+  "achievements",
+  "profile",
+];
 
 const actionOrder: ActionKey[] = [
   "atacar",
@@ -98,6 +128,9 @@ function normalizeSave(value: Partial<GameState>): GameState {
     ...initialGameState,
     ...value,
     completedEncounters: value.completedEncounters ?? initialGameState.completedEncounters,
+    solvedCases: value.solvedCases ?? initialGameState.solvedCases,
+    classifierWins: value.classifierWins ?? initialGameState.classifierWins,
+    reviewedFlashcards: value.reviewedFlashcards ?? initialGameState.reviewedFlashcards,
     unlockedArticles: value.unlockedArticles ?? initialGameState.unlockedArticles,
     relics: value.relics ?? initialGameState.relics,
     equippedRelics: value.equippedRelics ?? initialGameState.equippedRelics,
@@ -145,10 +178,42 @@ function getRarityClass(relic: Relic) {
   );
 }
 
+function getReviewedCount(state: GameState) {
+  return Object.values(state.reviewedFlashcards).reduce((total, value) => total + value, 0);
+}
+
+function isAchievementUnlocked(achievement: Achievement, state: GameState) {
+  const rule = achievement.rule;
+  if (rule.kind === "encounters") {
+    return state.completedEncounters.length >= rule.target;
+  }
+  if (rule.kind === "cases") {
+    return state.solvedCases.length >= rule.target;
+  }
+  if (rule.kind === "classifier") {
+    return state.classifierWins >= rule.target;
+  }
+  if (rule.kind === "flashcards") {
+    return getReviewedCount(state) >= rule.target;
+  }
+  if (rule.kind === "articles") {
+    return state.unlockedArticles.length >= rule.target;
+  }
+  return state.reputation >= rule.target;
+}
+
 export function ReinoGame() {
   const [state, setState] = useState<GameState>(initialGameState);
   const [scene, setScene] = useState<SceneKey>("map");
   const [selectedArticleId, setSelectedArticleId] = useState("art-1437");
+  const [caseDeck, setCaseDeck] = useState<LegalCase[]>(legalCases);
+  const [selectedCaseId, setSelectedCaseId] = useState(legalCases[0]?.id ?? "");
+  const [caseResultId, setCaseResultId] = useState<string | null>(null);
+  const [classifierRoundId, setClassifierRoundId] = useState(classifierRounds[0]?.id ?? "");
+  const [classifierAnswers, setClassifierAnswers] = useState<Record<string, string>>({});
+  const [classifierResult, setClassifierResult] = useState<{ score: number; total: number } | null>(null);
+  const [flashcardIndex, setFlashcardIndex] = useState(0);
+  const [flashcardRevealed, setFlashcardRevealed] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -168,6 +233,26 @@ export function ReinoGame() {
   }, []);
 
   useEffect(() => {
+    let alive = true;
+    fetch("/cases/civil-cases.json")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: unknown) => {
+        if (!alive || !Array.isArray(payload) || payload.length === 0) {
+          return;
+        }
+        const cases = payload as LegalCase[];
+        setCaseDeck(cases);
+        setSelectedCaseId((current) => current || cases[0]?.id || "");
+      })
+      .catch(() => {
+        setCaseDeck(legalCases);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (mounted) {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }
@@ -181,6 +266,11 @@ export function ReinoGame() {
     state.combat && activeEncounter
       ? activeEncounter.questions[state.combat.questionIndex % activeEncounter.questions.length]
       : null;
+  const selectedCase = caseDeck.find((item) => item.id === selectedCaseId) ?? caseDeck[0] ?? legalCases[0]!;
+  const selectedCaseResult = selectedCase?.options.find((option) => option.id === caseResultId) ?? null;
+  const activeClassifierRound =
+    classifierRounds.find((round) => round.id === classifierRoundId) ?? classifierRounds[0]!;
+  const activeFlashcard = flashcards[flashcardIndex % flashcards.length] ?? flashcards[0]!;
 
   const addActivity = (entry: CombatLogEntry) => {
     setState((current) => ({
@@ -489,6 +579,138 @@ export function ReinoGame() {
     }));
   };
 
+  const selectCase = (caseId: string) => {
+    setSelectedCaseId(caseId);
+    setCaseResultId(null);
+  };
+
+  const resolveCase = (optionId: string) => {
+    if (!selectedCase || caseResultId) {
+      return;
+    }
+    const option = selectedCase.options.find((item) => item.id === optionId);
+    if (!option) {
+      return;
+    }
+    setCaseResultId(optionId);
+
+    setState((current) => {
+      const alreadySolved = current.solvedCases.includes(selectedCase.id);
+      const expGain = option.correct ? (alreadySolved ? 35 : selectedCase.reward.exp) : 8;
+      const newExp = current.exp + expGain;
+      const progress = getLevelProgress(newExp);
+      const articleIds = option.correct
+        ? unique([...selectedCase.reward.articleIds, option.articleId])
+        : [option.articleId];
+
+      return {
+        ...current,
+        level: progress.level,
+        exp: newExp,
+        reputation: option.correct
+          ? Math.min(100, current.reputation + (alreadySolved ? 1 : selectedCase.reward.reputation))
+          : Math.max(0, current.reputation - 1),
+        trauma: option.correct ? Math.max(0, current.trauma - 3) : Math.min(100, current.trauma + 5),
+        solvedCases: option.correct ? unique([...current.solvedCases, selectedCase.id]) : current.solvedCases,
+        unlockedArticles: unique([...current.unlockedArticles, ...articleIds]),
+        articleMastery: {
+          ...current.articleMastery,
+          [option.articleId]: Math.min(5, (current.articleMastery[option.articleId] ?? 0) + (option.correct ? 1 : 0)),
+        },
+        activity: [
+          makeLog(
+            option.correct ? "reward" : "bad",
+            option.correct
+              ? `Caso resuelto: ${selectedCase.title}. +${expGain} EXP.`
+              : `Caso fallido: ${option.concept}. Revisa el Códex antes de insistir.`,
+          ),
+          ...current.activity,
+        ].slice(0, 8),
+      };
+    });
+  };
+
+  const selectClassifierRound = (roundId: string) => {
+    setClassifierRoundId(roundId);
+    setClassifierAnswers({});
+    setClassifierResult(null);
+  };
+
+  const setClassifierAnswer = (itemId: string, value: string) => {
+    setClassifierAnswers((current) => ({ ...current, [itemId]: value }));
+    setClassifierResult(null);
+  };
+
+  const checkClassifier = () => {
+    if (!activeClassifierRound || classifierResult) {
+      return;
+    }
+    const total = activeClassifierRound.items.length;
+    const score = activeClassifierRound.items.filter((item) => classifierAnswers[item.id] === item.answer).length;
+    setClassifierResult({ score, total });
+
+    setState((current) => {
+      const perfect = score === total;
+      const expGain = perfect ? 170 : Math.max(20, score * 18);
+      const newExp = current.exp + expGain;
+      const progress = getLevelProgress(newExp);
+      const articleIds = unique(activeClassifierRound.items.map((item) => item.articleId));
+
+      return {
+        ...current,
+        level: progress.level,
+        exp: newExp,
+        reputation: perfect ? Math.min(100, current.reputation + 8) : current.reputation,
+        trauma: perfect ? Math.max(0, current.trauma - 4) : Math.min(100, current.trauma + (total - score) * 2),
+        classifierWins: perfect ? current.classifierWins + 1 : current.classifierWins,
+        unlockedArticles: perfect ? unique([...current.unlockedArticles, ...articleIds]) : current.unlockedArticles,
+        activity: [
+          makeLog(
+            perfect ? "reward" : "neutral",
+            perfect
+              ? `Clasificador perfecto: ${activeClassifierRound.title}. +${expGain} EXP.`
+              : `Clasificador: ${score}/${total}. El error también deja huella útil.`,
+          ),
+          ...current.activity,
+        ].slice(0, 8),
+      };
+    });
+  };
+
+  const reviewFlashcard = (grade: "again" | "good" | "perfect") => {
+    const card = activeFlashcard;
+    const expGain = grade === "perfect" ? 36 : grade === "good" ? 22 : 10;
+    setState((current) => {
+      const newExp = current.exp + expGain;
+      const progress = getLevelProgress(newExp);
+      const currentReviews = current.reviewedFlashcards[card.id] ?? 0;
+      const mastery = current.articleMastery[card.articleId] ?? 0;
+
+      return {
+        ...current,
+        level: progress.level,
+        exp: newExp,
+        reputation: grade === "again" ? current.reputation : Math.min(100, current.reputation + 1),
+        trauma: grade === "again" ? Math.min(100, current.trauma + 1) : Math.max(0, current.trauma - 1),
+        reviewedFlashcards: {
+          ...current.reviewedFlashcards,
+          [card.id]: currentReviews + 1,
+        },
+        unlockedArticles: unique([...current.unlockedArticles, card.articleId]),
+        articleMastery: {
+          ...current.articleMastery,
+          [card.articleId]: Math.min(5, mastery + (grade === "perfect" ? 2 : 1)),
+        },
+        activity: [
+          makeLog("good", `Memoria jurídica: ${card.world} repasado. +${expGain} EXP.`),
+          ...current.activity,
+        ].slice(0, 8),
+      };
+    });
+    setFlashcardIndex((current) => (current + 1) % flashcards.length);
+    setFlashcardRevealed(false);
+  };
+
   const resetRun = () => {
     if (!window.confirm("¿Reiniciar la partida del Reino de Bello?")) {
       return;
@@ -564,6 +786,49 @@ export function ReinoGame() {
             />
           )}
 
+          {scene === "cases" && (
+            <CasesScene
+              key="cases"
+              caseDeck={caseDeck}
+              caseResult={selectedCaseResult}
+              resolveCase={resolveCase}
+              selectCase={selectCase}
+              selectedCase={selectedCase}
+              selectedCaseId={selectedCaseId}
+              setScene={setScene}
+              state={state}
+            />
+          )}
+
+          {scene === "classifier" && (
+            <ClassifierScene
+              key="classifier"
+              answers={classifierAnswers}
+              checkClassifier={checkClassifier}
+              result={classifierResult}
+              round={activeClassifierRound}
+              roundId={classifierRoundId}
+              selectRound={selectClassifierRound}
+              setAnswer={setClassifierAnswer}
+              setScene={setScene}
+              state={state}
+            />
+          )}
+
+          {scene === "memory" && (
+            <MemoryScene
+              key="memory"
+              card={activeFlashcard}
+              flashcardIndex={flashcardIndex}
+              revealed={flashcardRevealed}
+              reviewFlashcard={reviewFlashcard}
+              setFlashcardIndex={setFlashcardIndex}
+              setRevealed={setFlashcardRevealed}
+              setScene={setScene}
+              state={state}
+            />
+          )}
+
           {scene === "inventory" && (
             <InventoryScene
               key="inventory"
@@ -582,6 +847,14 @@ export function ReinoGame() {
               selectedArticleId={selectedArticleId}
               setScene={setScene}
               setSelectedArticleId={setSelectedArticleId}
+              state={state}
+            />
+          )}
+
+          {scene === "achievements" && (
+            <AchievementsScene
+              key="achievements"
+              setScene={setScene}
               state={state}
             />
           )}
@@ -618,7 +891,7 @@ function TopBar({
   stats: Record<StatKey, number>;
 }) {
   return (
-    <header className="mb-3 grid gap-3 lg:grid-cols-[330px_1fr_440px]">
+    <header className="mb-3 grid gap-3 lg:grid-cols-[330px_1fr_720px]">
       <button
         className="arcane-panel group flex items-center gap-3 p-3 text-left"
         onClick={() => setScene("profile")}
@@ -659,14 +932,14 @@ function TopBar({
         </div>
       </div>
 
-      <div className="arcane-panel hidden items-center gap-2 p-2 lg:flex">
-        {(["map", "district", "combat", "inventory", "codex", "profile"] as SceneKey[]).map((key) => {
+      <div className="arcane-panel hidden grid-cols-5 gap-2 p-2 lg:grid">
+        {mainScenes.map((key) => {
           const Icon = sceneLabels[key].icon;
           const disabled = key === "combat" && !state.combat;
           return (
             <button
               className={cn(
-                "flex h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-sm border border-white/8 bg-white/[0.025] text-[0.62rem] uppercase tracking-[0.12em] text-slate-400 transition",
+                "flex h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-sm border border-white/8 bg-white/[0.025] text-[0.58rem] uppercase tracking-[0.08em] text-slate-400 transition",
                 scene === key && "border-amber-300/55 bg-amber-300/12 text-amber-100",
                 !disabled && "hover:border-cyan-300/40 hover:text-cyan-100",
                 disabled && "opacity-35",
@@ -1477,6 +1750,518 @@ function InfoLine({ label, value }: { label: string; value: string }) {
   );
 }
 
+function CasesScene({
+  caseDeck,
+  caseResult,
+  resolveCase,
+  selectCase,
+  selectedCase,
+  selectedCaseId,
+  setScene,
+  state,
+}: {
+  caseDeck: LegalCase[];
+  caseResult: LegalCase["options"][number] | null;
+  resolveCase: (optionId: string) => void;
+  selectCase: (caseId: string) => void;
+  selectedCase: LegalCase;
+  selectedCaseId: string;
+  setScene: (scene: SceneKey) => void;
+  state: GameState;
+}) {
+  return (
+    <motion.div
+      animate={{ opacity: 1, y: 0 }}
+      className="grid flex-1 gap-3 lg:grid-cols-[360px_1fr]"
+      exit={{ opacity: 0, y: -14 }}
+      initial={{ opacity: 0, y: 18 }}
+      transition={{ duration: 0.32 }}
+    >
+      <aside className="arcane-panel p-4">
+        <p className="text-[0.65rem] uppercase tracking-[0.24em] text-amber-200">Expedientes</p>
+        <div className="mt-4 grid gap-2">
+          {caseDeck.map((item) => {
+            const solved = state.solvedCases.includes(item.id);
+            return (
+              <button
+                className={cn(
+                  "rounded-sm border p-3 text-left transition",
+                  item.id === selectedCaseId
+                    ? "border-amber-300/45 bg-amber-300/12 text-amber-100"
+                    : "border-white/8 bg-white/[0.035] text-slate-300 hover:border-cyan-300/35",
+                )}
+                key={item.id}
+                onClick={() => selectCase(item.id)}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-display text-sm uppercase tracking-[0.1em]">{item.title}</p>
+                  {solved ? <Medal className="h-4 w-4 text-emerald-200" /> : <Archive className="h-4 w-4" />}
+                </div>
+                <p className="mt-2 text-[0.62rem] uppercase tracking-[0.18em] text-cyan-200">
+                  {item.world} / Dificultad {item.difficulty}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </aside>
+
+      <section className="arcane-panel overflow-hidden p-5">
+        <div className="grid gap-5 xl:grid-cols-[1fr_340px]">
+          <div>
+            <p className="text-[0.65rem] uppercase tracking-[0.28em] text-cyan-200">Caso jurídico</p>
+            <h2 className="font-display mt-2 text-3xl uppercase tracking-[0.12em] text-white">
+              {selectedCase.title}
+            </h2>
+            <p className="mt-4 max-w-4xl text-sm leading-7 text-slate-300">{selectedCase.dossier}</p>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              {selectedCase.facts.map((fact) => (
+                <div className="rounded-sm border border-white/10 bg-black/25 p-3 text-sm text-slate-300" key={fact}>
+                  {fact}
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 rounded-sm border border-amber-300/25 bg-amber-300/8 p-4">
+              <p className="text-[0.65rem] uppercase tracking-[0.22em] text-amber-200">Pregunta del caso</p>
+              <h3 className="font-display mt-2 text-xl uppercase tracking-[0.08em] text-white">
+                {selectedCase.question}
+              </h3>
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              {selectedCase.options.map((option) => {
+                const selected = caseResult?.id === option.id;
+                return (
+                  <button
+                    className={cn(
+                      "rounded-sm border p-4 text-left text-sm leading-6 transition",
+                      !caseResult && "border-white/10 bg-white/[0.035] hover:border-cyan-300/40 hover:text-cyan-100",
+                      caseResult &&
+                        option.correct &&
+                        "border-emerald-300/45 bg-emerald-300/12 text-emerald-100",
+                      caseResult &&
+                        selected &&
+                        !option.correct &&
+                        "border-rose-300/55 bg-rose-400/12 text-rose-100",
+                      caseResult &&
+                        !selected &&
+                        !option.correct &&
+                        "border-white/8 bg-black/25 text-slate-500",
+                    )}
+                    disabled={Boolean(caseResult)}
+                    key={option.id}
+                    onClick={() => resolveCase(option.id)}
+                  >
+                    <span className="font-display block text-base uppercase tracking-[0.08em]">{option.label}</span>
+                    {caseResult && (
+                      <span className="mt-2 block text-xs text-slate-300">
+                        {getArticle(option.articleId)?.number ?? option.articleId} / {option.concept}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {caseResult && (
+              <div
+                className={cn(
+                  "mt-5 rounded-sm border p-4",
+                  caseResult.correct ? "border-emerald-300/35 bg-emerald-300/10" : "border-rose-300/35 bg-rose-400/10",
+                )}
+              >
+                <p className="text-sm leading-7 text-slate-100">{caseResult.feedback}</p>
+                <p className="mt-3 text-sm leading-7 text-slate-300">{selectedCase.resolution}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button onClick={() => selectCase(selectedCase.id)} variant="ghost">
+                    <RotateCcw className="h-4 w-4" />
+                    Reintentar
+                  </Button>
+                  <Button onClick={() => setScene("codex")} variant="cyan">
+                    <BookOpen className="h-4 w-4" />
+                    Códex
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <aside className="grid content-start gap-3">
+            <InfoLine label="Casos resueltos" value={`${state.solvedCases.length}/${caseDeck.length}`} />
+            <InfoLine label="Recompensa" value={`${selectedCase.reward.exp} EXP / ${selectedCase.reward.reputation} reputación`} />
+            <div className="rounded-sm border border-white/10 bg-white/[0.035] p-4">
+              <p className="text-[0.65rem] uppercase tracking-[0.24em] text-violet-200">Artículos que entrenas</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {selectedCase.reward.articleIds.map((articleId) => (
+                  <span className="rounded-sm border border-violet-300/25 bg-violet-300/10 px-2 py-1 text-xs text-violet-100" key={articleId}>
+                    {getArticle(articleId)?.number ?? articleId}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </motion.div>
+  );
+}
+
+function ClassifierScene({
+  answers,
+  checkClassifier,
+  result,
+  round,
+  roundId,
+  selectRound,
+  setAnswer,
+  setScene,
+  state,
+}: {
+  answers: Record<string, string>;
+  checkClassifier: () => void;
+  result: { score: number; total: number } | null;
+  round: ClassifierRound;
+  roundId: string;
+  selectRound: (roundId: string) => void;
+  setAnswer: (itemId: string, value: string) => void;
+  setScene: (scene: SceneKey) => void;
+  state: GameState;
+}) {
+  return (
+    <motion.div
+      animate={{ opacity: 1, y: 0 }}
+      className="grid flex-1 gap-3 xl:grid-cols-[320px_1fr]"
+      exit={{ opacity: 0, y: -14 }}
+      initial={{ opacity: 0, y: 18 }}
+      transition={{ duration: 0.32 }}
+    >
+      <aside className="arcane-panel p-4">
+        <p className="text-[0.65rem] uppercase tracking-[0.24em] text-cyan-200">Rondas</p>
+        <div className="mt-4 grid gap-2">
+          {classifierRounds.map((item) => (
+            <button
+              className={cn(
+                "rounded-sm border p-3 text-left transition",
+                item.id === roundId
+                  ? "border-cyan-300/45 bg-cyan-300/12 text-cyan-100"
+                  : "border-white/8 bg-white/[0.035] text-slate-300 hover:border-amber-300/35",
+              )}
+              key={item.id}
+              onClick={() => selectRound(item.id)}
+            >
+              <p className="font-display text-sm uppercase tracking-[0.1em]">{item.title}</p>
+              <p className="mt-2 text-xs text-slate-500">{item.items.length} conceptos</p>
+            </button>
+          ))}
+        </div>
+        <div className="mt-4">
+          <InfoLine label="Victorias perfectas" value={String(state.classifierWins)} />
+        </div>
+      </aside>
+
+      <section className="arcane-panel p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-[0.65rem] uppercase tracking-[0.28em] text-amber-200">Clasificador jurídico</p>
+            <h2 className="font-display mt-2 text-3xl uppercase tracking-[0.12em] text-white">{round.title}</h2>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">{round.prompt}</p>
+          </div>
+          <Button onClick={checkClassifier} variant="primary">
+            <CircleDot className="h-4 w-4" />
+            Verificar
+          </Button>
+        </div>
+
+        {result && (
+          <div className="mt-5 rounded-sm border border-amber-300/30 bg-amber-300/10 p-4">
+            <p className="font-display text-xl uppercase tracking-[0.12em] text-white">
+              Resultado {result.score}/{result.total}
+            </p>
+            <p className="mt-2 text-sm text-slate-300">
+              {result.score === result.total
+                ? "Clasificación perfecta. La Academia registra dominio conceptual."
+                : "Corrige las categorías marcadas y vuelve a verificar."}
+            </p>
+          </div>
+        )}
+
+        <div className="mt-5 grid gap-3">
+          {round.items.map((item) => {
+            const answer = answers[item.id] ?? "";
+            const correct = result ? answer === item.answer : null;
+            return (
+              <div
+                className={cn(
+                  "grid gap-3 rounded-sm border bg-white/[0.035] p-4 md:grid-cols-[1fr_280px]",
+                  result && correct && "border-emerald-300/40 bg-emerald-300/8",
+                  result && !correct && "border-rose-300/45 bg-rose-400/8",
+                  !result && "border-white/10",
+                )}
+                key={item.id}
+              >
+                <div>
+                  <p className="font-display text-base uppercase tracking-[0.08em] text-white">{item.label}</p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">
+                    Art. {getArticle(item.articleId)?.number ?? item.articleId}
+                  </p>
+                  {result && <p className="mt-3 text-sm leading-6 text-slate-300">{item.explanation}</p>}
+                </div>
+                <select
+                  className="h-11 rounded-sm border border-white/10 bg-slate-950 px-3 text-sm text-slate-100 outline-none transition focus:border-cyan-300/60"
+                  onChange={(event) => setAnswer(item.id, event.target.value)}
+                  value={answer}
+                >
+                  <option value="">Elegir categoría</option>
+                  {round.columns.map((column) => (
+                    <option key={column} value={column}>
+                      {column}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          <Button onClick={() => setScene("cases")} variant="violet">
+            <Archive className="h-4 w-4" />
+            Casos
+          </Button>
+          <Button onClick={() => setScene("memory")} variant="cyan">
+            <Zap className="h-4 w-4" />
+            Memoria
+          </Button>
+        </div>
+      </section>
+    </motion.div>
+  );
+}
+
+function MemoryScene({
+  card,
+  flashcardIndex,
+  revealed,
+  reviewFlashcard,
+  setFlashcardIndex,
+  setRevealed,
+  setScene,
+  state,
+}: {
+  card: Flashcard;
+  flashcardIndex: number;
+  revealed: boolean;
+  reviewFlashcard: (grade: "again" | "good" | "perfect") => void;
+  setFlashcardIndex: Dispatch<SetStateAction<number>>;
+  setRevealed: Dispatch<SetStateAction<boolean>>;
+  setScene: (scene: SceneKey) => void;
+  state: GameState;
+}) {
+  const reviews = state.reviewedFlashcards[card.id] ?? 0;
+
+  return (
+    <motion.div
+      animate={{ opacity: 1, y: 0 }}
+      className="grid flex-1 gap-3 lg:grid-cols-[330px_1fr]"
+      exit={{ opacity: 0, y: -14 }}
+      initial={{ opacity: 0, y: 18 }}
+      transition={{ duration: 0.32 }}
+    >
+      <aside className="arcane-panel p-4">
+        <p className="text-[0.65rem] uppercase tracking-[0.24em] text-cyan-200">Memoria jurídica</p>
+        <div className="mt-4 grid gap-3">
+          <InfoLine label="Tarjetas repasadas" value={String(getReviewedCount(state))} />
+          <InfoLine label="Artículo activo" value={getArticle(card.articleId)?.number ?? card.articleId} />
+          <InfoLine label="Repasos de esta carta" value={String(reviews)} />
+        </div>
+        <div className="mt-4 flex gap-2">
+          <Button
+            onClick={() => {
+              setFlashcardIndex((current) => (current + flashcards.length - 1) % flashcards.length);
+              setRevealed(false);
+            }}
+            variant="ghost"
+          >
+            <ChevronRight className="h-4 w-4 rotate-180" />
+          </Button>
+          <Button
+            onClick={() => {
+              setFlashcardIndex((current) => (current + 1) % flashcards.length);
+              setRevealed(false);
+            }}
+            variant="ghost"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </aside>
+
+      <section className="arcane-panel grid content-center p-5">
+        <div className="mx-auto w-full max-w-4xl">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[0.65rem] uppercase tracking-[0.28em] text-amber-200">
+                Tarjeta {flashcardIndex + 1}/{flashcards.length} / {card.world}
+              </p>
+              <h2 className="font-display mt-2 text-3xl uppercase tracking-[0.12em] text-white">
+                {getArticle(card.articleId)?.title ?? card.articleId}
+              </h2>
+            </div>
+            <Button onClick={() => setScene("codex")} variant="violet">
+              <BookOpen className="h-4 w-4" />
+              Códex
+            </Button>
+          </div>
+
+          <div className="mt-6 min-h-[320px] rounded-sm border border-amber-300/30 bg-[linear-gradient(135deg,rgba(245,158,11,0.12),rgba(15,23,42,0.72))] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+            <p className="text-[0.65rem] uppercase tracking-[0.24em] text-cyan-200">Pregunta</p>
+            <h3 className="font-display mt-3 text-3xl uppercase leading-tight tracking-[0.08em] text-white">
+              {card.front}
+            </h3>
+            {revealed ? (
+              <div className="mt-6 rounded-sm border border-white/10 bg-black/30 p-4">
+                <p className="text-[0.65rem] uppercase tracking-[0.24em] text-emerald-200">Respuesta</p>
+                <p className="mt-3 text-lg leading-8 text-slate-100">{card.back}</p>
+                <p className="mt-4 rounded-sm border border-violet-300/20 bg-violet-300/10 p-3 text-sm text-violet-100">
+                  {card.mnemonic}
+                </p>
+              </div>
+            ) : (
+              <Button className="mt-8" onClick={() => setRevealed(true)} variant="primary">
+                <Sparkles className="h-4 w-4" />
+                Mostrar respuesta
+              </Button>
+            )}
+          </div>
+
+          {revealed && (
+            <div className="mt-5 grid gap-2 sm:grid-cols-3">
+              <Button onClick={() => reviewFlashcard("again")} variant="red">
+                Repetir
+              </Button>
+              <Button onClick={() => reviewFlashcard("good")} variant="cyan">
+                Correcta
+              </Button>
+              <Button onClick={() => reviewFlashcard("perfect")} variant="primary">
+                Perfecta
+              </Button>
+            </div>
+          )}
+        </div>
+      </section>
+    </motion.div>
+  );
+}
+
+function AchievementsScene({
+  setScene,
+  state,
+}: {
+  setScene: (scene: SceneKey) => void;
+  state: GameState;
+}) {
+  const unlocked = achievements.filter((achievement) => isAchievementUnlocked(achievement, state));
+
+  return (
+    <motion.div
+      animate={{ opacity: 1, y: 0 }}
+      className="grid flex-1 gap-3 xl:grid-cols-[1fr_380px]"
+      exit={{ opacity: 0, y: -14 }}
+      initial={{ opacity: 0, y: 18 }}
+      transition={{ duration: 0.32 }}
+    >
+      <section className="arcane-panel p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-[0.65rem] uppercase tracking-[0.28em] text-amber-200">Logros y academia</p>
+            <h2 className="font-display mt-2 text-3xl uppercase tracking-[0.12em] text-white">
+              Progreso del grado
+            </h2>
+          </div>
+          <Button onClick={() => setScene("map")} variant="cyan">
+            <Map className="h-4 w-4" />
+            Mapa
+          </Button>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {achievements.map((achievement) => {
+            const earned = isAchievementUnlocked(achievement, state);
+            return (
+              <div
+                className={cn(
+                  "rounded-sm border p-4",
+                  earned ? "border-amber-300/45 bg-amber-300/10" : "border-white/8 bg-white/[0.035] opacity-75",
+                )}
+                key={achievement.id}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <Trophy className={cn("h-6 w-6", earned ? "text-amber-200" : "text-slate-500")} />
+                  {earned ? <Medal className="h-5 w-5 text-emerald-200" /> : <Lock className="h-5 w-5 text-slate-600" />}
+                </div>
+                <h3 className="font-display mt-4 text-lg uppercase tracking-[0.1em] text-white">{achievement.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-300">{achievement.description}</p>
+                <p className="mt-3 text-xs uppercase tracking-[0.18em] text-cyan-200">{achievement.reward}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-6 grid gap-3 lg:grid-cols-2">
+          <div className="rounded-sm border border-white/10 bg-black/25 p-4">
+            <p className="text-[0.65rem] uppercase tracking-[0.24em] text-cyan-200">NPCs</p>
+            <div className="mt-3 grid gap-2">
+              {npcs.map((npc) => (
+                <div className="rounded-sm border border-white/8 bg-white/[0.035] p-3" key={npc.name}>
+                  <p className="font-display text-sm uppercase tracking-[0.1em] text-white">{npc.name}</p>
+                  <p className="text-xs uppercase tracking-[0.14em] text-amber-200">{npc.role}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">{npc.line}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-sm border border-white/10 bg-black/25 p-4">
+            <p className="text-[0.65rem] uppercase tracking-[0.24em] text-violet-200">Profesores</p>
+            <div className="mt-3 grid gap-2">
+              {professors.map((professor) => (
+                <div className="rounded-sm border border-white/8 bg-white/[0.035] p-3" key={professor.name}>
+                  <p className="font-display text-sm uppercase tracking-[0.1em] text-white">{professor.name}</p>
+                  <p className="text-xs uppercase tracking-[0.14em] text-cyan-200">{professor.specialty}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">{professor.threat}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside className="grid content-start gap-3">
+        <div className="arcane-panel p-4">
+          <p className="text-[0.65rem] uppercase tracking-[0.24em] text-amber-200">Resumen</p>
+          <div className="mt-3 grid gap-2">
+            <InfoLine label="Logros" value={`${unlocked.length}/${achievements.length}`} />
+            <InfoLine label="Duelos ganados" value={String(state.completedEncounters.length)} />
+            <InfoLine label="Casos" value={String(state.solvedCases.length)} />
+            <InfoLine label="Flashcards" value={String(getReviewedCount(state))} />
+          </div>
+        </div>
+        <div className="arcane-panel p-4">
+          <p className="text-[0.65rem] uppercase tracking-[0.24em] text-cyan-200">Futuras expansiones</p>
+          <div className="mt-3 grid gap-2">
+            {futureExpansions.map((item) => (
+              <p className="rounded-sm border border-white/8 bg-white/[0.035] p-3 text-sm leading-6 text-slate-300" key={item}>
+                {item}
+              </p>
+            ))}
+          </div>
+        </div>
+      </aside>
+    </motion.div>
+  );
+}
+
 function InventoryScene({
   equipRelic,
   restAtArchive,
@@ -1702,7 +2487,9 @@ function ProfileScene({
   state: GameState;
   stats: Record<StatKey, number>;
 }) {
-  const completedBoss = state.completedEncounters.includes("cobrador-eterno");
+  const bossEncounters = encounters.filter((encounter) => encounter.kind === "boss");
+  const completedBossCount = bossEncounters.filter((encounter) => state.completedEncounters.includes(encounter.id)).length;
+  const unlockedAchievements = achievements.filter((achievement) => isAchievementUnlocked(achievement, state)).length;
   return (
     <motion.div
       animate={{ opacity: 1, y: 0 }}
@@ -1730,10 +2517,12 @@ function ProfileScene({
           </div>
         </div>
 
-        <div className="mt-6 grid gap-3 md:grid-cols-3">
-          <ProfileBadge icon={Trophy} label="Bosses" value={completedBoss ? "1/6" : "0/6"} />
+        <div className="mt-6 grid gap-3 md:grid-cols-3 xl:grid-cols-5">
+          <ProfileBadge icon={Trophy} label="Bosses" value={`${completedBossCount}/${bossEncounters.length}`} />
+          <ProfileBadge icon={Archive} label="Casos" value={`${state.solvedCases.length}/${legalCases.length}`} />
+          <ProfileBadge icon={CircleDot} label="Clasificador" value={String(state.classifierWins)} />
           <ProfileBadge icon={BookOpen} label="Artículos" value={`${state.unlockedArticles.length}/${articles.length}`} />
-          <ProfileBadge icon={Package} label="Reliquias" value={`${state.relics.length}/${relics.length}`} />
+          <ProfileBadge icon={Medal} label="Logros" value={`${unlockedAchievements}/${achievements.length}`} />
         </div>
 
         <div className="mt-6 grid gap-3 lg:grid-cols-2">
@@ -1744,7 +2533,9 @@ function ProfileScene({
                 ["Aspirante del Código", true],
                 ["Domador de Fuentes", state.completedEncounters.includes("fuentes-vivas")],
                 ["Señor del Pacto", state.completedEncounters.includes("trono-del-pacto")],
-                ["Vencedor del Cobrador", completedBoss],
+                ["Guardia Hipotecario", state.completedEncounters.includes("fortaleza-persecucion")],
+                ["Detective Civil", state.solvedCases.length >= 3],
+                ["Memoria de Bello", getReviewedCount(state) >= 8],
               ].map(([title, earned]) => (
                 <div
                   className={cn(
@@ -1794,8 +2585,8 @@ function BottomNav({
   state: GameState;
 }) {
   return (
-    <nav className="arcane-panel mt-3 grid grid-cols-3 gap-1 p-1 sm:grid-cols-6 lg:hidden">
-      {(["map", "district", "combat", "inventory", "codex", "profile"] as SceneKey[]).map((key) => {
+    <nav className="arcane-panel mt-3 grid grid-cols-5 gap-1 p-1 lg:hidden">
+      {mainScenes.map((key) => {
         const Icon = sceneLabels[key].icon;
         const disabled = key === "combat" && !state.combat;
         return (
